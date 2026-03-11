@@ -22,6 +22,7 @@ import maestro.orchestra.ElementSelector
 import maestro.orchestra.EraseTextCommand
 import maestro.orchestra.EvalScriptCommand
 import maestro.orchestra.HideKeyboardCommand
+import maestro.orchestra.CustomCommand
 import maestro.orchestra.InputRandomCommand
 import maestro.orchestra.InputRandomType
 import maestro.orchestra.InputTextCommand
@@ -69,12 +70,35 @@ import kotlin.io.path.writeText
 internal class YamlCommandReaderTest {
 
     @Test
-    fun web_custom_command_expands_commands_from_app_source(@TempDir tempDir: Path) {
+    fun web_custom_command_parses_dollar_prefixed_runtime_invocations(@TempDir tempDir: Path) {
         tempDir.resolve("app.tsx").writeText(
             """
-            <maestro name="enterEmail">
+            <maestro name="login">
               - tapOn: Username or email
-              - inputText: $0
+              - inputText: ${'$'}email
+              - tapOn: Password
+              - inputText: ${'$'}password
+              - tapOn: submit
+            </maestro>
+
+            <maestro name="search">
+              - tapOn: Search all products
+              - inputText: ${'$'}0
+            </maestro>
+
+            <maestro name="openFilters">
+              - tapOn:
+                  id: filter-icon
+            </maestro>
+
+            <maestro name={`toggleFilter: ${'$'}{filterId}`}>
+              - tapOn:
+                  id: {filterId}
+            </maestro>
+
+            <maestro name={[`viewProduct${'$'}{i}`, `viewProduct: ${'$'}{productId}`]}>
+              - tapOn:
+                  id: product-row-{productId}
             </maestro>
             """.trimIndent()
         )
@@ -83,7 +107,14 @@ internal class YamlCommandReaderTest {
             """
             appId: https://example.com
             ---
-            - enterEmail: leland@mobile.dev
+            - ${'$'}login:
+                email: leland@mobile.dev
+                password: ${'$'}{PASSWORD}
+            - ${'$'}search: shoes
+            - ${'$'}openFilters
+            - ${'$'}toggleFilter: men
+            - ${'$'}viewProduct0
+            - tapOn: Close
             """.trimIndent()
         )
 
@@ -96,14 +127,32 @@ internal class YamlCommandReaderTest {
                     appId = "https://example.com"
                 )
             ),
+            CustomCommand(
+                name = "login",
+                namedArgs = mapOf(
+                    "email" to "leland@mobile.dev",
+                    "password" to "\${PASSWORD}",
+                ),
+            ),
+            CustomCommand(
+                name = "search",
+                positionalArgs = listOf("shoes"),
+            ),
+            CustomCommand(
+                name = "openFilters",
+            ),
+            CustomCommand(
+                name = "toggleFilter",
+                positionalArgs = listOf("men"),
+            ),
+            CustomCommand(
+                name = "viewProduct0",
+            ),
             TapOnElementCommand(
-                selector = ElementSelector(textRegex = "Username or email"),
+                selector = ElementSelector(textRegex = "Close"),
                 retryIfNoChange = false,
                 waitUntilVisible = false,
                 longPress = false,
-            ),
-            InputTextCommand(
-                text = "leland@mobile.dev"
             ),
         ).inOrder()
     }

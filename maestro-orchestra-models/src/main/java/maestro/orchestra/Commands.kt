@@ -1159,6 +1159,26 @@ data class ToggleAirplaneModeCommand(
     }
 }
 
+data class CustomCommand(
+    val name: String,
+    val positionalArgs: List<String> = emptyList(),
+    val namedArgs: Map<String, String> = emptyMap(),
+    override val label: String? = null,
+    override val optional: Boolean = false,
+) : Command {
+    override val originalDescription: String
+        get() = "Invoke runtime command $$name"
+
+    override fun evaluateScripts(jsEngine: JsEngine): Command {
+        return copy(
+            name = name.evaluateScripts(jsEngine),
+            positionalArgs = positionalArgs.map { it.evaluateScripts(jsEngine) },
+            namedArgs = namedArgs.mapValues { it.value.evaluateScripts(jsEngine) },
+            label = label?.evaluateScripts(jsEngine),
+        )
+    }
+}
+
 internal fun tapOnDescription(isLongPress: Boolean?, repeat: TapRepeat?): String {
     return if (isLongPress == true) "Long press"
     else if (repeat != null) {
