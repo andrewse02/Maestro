@@ -35,6 +35,7 @@ import maestro.orchestra.ClearKeychainCommand
 import maestro.orchestra.ClearStateCommand
 import maestro.orchestra.Condition
 import maestro.orchestra.CopyTextFromCommand
+import maestro.orchestra.CustomCommand
 import maestro.orchestra.SetClipboardCommand
 import maestro.orchestra.ElementSelector
 import maestro.orchestra.ElementTrait
@@ -88,6 +89,7 @@ class ToCommandsException(
 ) : RuntimeException(cause)
 
 data class YamlFluentCommand(
+    val customCommand: YamlCustomCommand? = null,
     val tapOn: YamlElementSelectorUnion? = null,
     val doubleTapOn: YamlElementSelectorUnion? = null,
     val longPressOn: YamlElementSelectorUnion? = null,
@@ -155,6 +157,17 @@ data class YamlFluentCommand(
     @SuppressWarnings("ComplexMethod")
     private fun _toCommands(flowPath: Path, appId: String): List<MaestroCommand> {
         return when {
+            customCommand != null -> listOf(
+                MaestroCommand(
+                    CustomCommand(
+                        name = customCommand.name,
+                        positionalArgs = customCommand.positionalArgs,
+                        namedArgs = customCommand.namedArgs,
+                        label = customCommand.label,
+                        optional = customCommand.optional,
+                    )
+                )
+            )
             launchApp != null -> listOf(launchApp(launchApp, appId))
             setPermissions != null -> listOf(setPermissions(command = setPermissions, appId))
             tapOn != null -> listOf(tapCommand(tapOn))
@@ -1012,3 +1025,11 @@ data class YamlFluentCommand(
         )
     }
 }
+
+data class YamlCustomCommand(
+    val name: String,
+    val positionalArgs: List<String> = emptyList(),
+    val namedArgs: Map<String, String> = emptyMap(),
+    val label: String? = null,
+    val optional: Boolean = false,
+)

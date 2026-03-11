@@ -26,6 +26,7 @@ import com.fasterxml.jackson.core.JsonToken
 import com.fasterxml.jackson.core.TreeNode
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.JsonDeserializer
+import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.exc.MismatchedInputException
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException
@@ -323,6 +324,20 @@ private object YamlCommandDeserializer : JsonDeserializer<YamlFluentCommand>() {
     private fun parseStringCommand(parser: JsonParser): YamlFluentCommand {
         val commandLocation = parser.currentLocation()
         val commandText = parser.text
+        if (commandText.startsWith("$")) {
+            val invocationName = commandText.removePrefix("$")
+            if (invocationName.isBlank()) {
+                throw ParseException(
+                    location = commandLocation,
+                    title = "Invalid Custom Command",
+                    errorMessage = "Custom command names cannot be empty.",
+                )
+            }
+            return YamlFluentCommand(
+                _location = commandLocation,
+                customCommand = YamlCustomCommand(name = invocationName),
+            )
+        }
         val command = stringCommands[commandText]
         if (command != null) return command(parser.currentLocation())
         if (commandText in objectCommands) {
@@ -350,6 +365,9 @@ private object YamlCommandDeserializer : JsonDeserializer<YamlFluentCommand>() {
     private fun parseObjectCommand(parser: JsonParser): YamlFluentCommand {
         val commandLocation = parser.currentLocation()
         val commandName = parser.nextFieldName()
+        if (commandName.startsWith("$")) {
+            return parseCustomCommand(parser, commandLocation, commandName)
+        }
         val commandParameter = yamlFluentCommandParameters.firstOrNull { it.name == commandName }
         if (commandParameter == null) {
             throw ParseException(
@@ -412,6 +430,66 @@ private object YamlCommandDeserializer : JsonDeserializer<YamlFluentCommand>() {
                 |    optional: true
                 |- inputText: hello
                 |```
+            """.trimMargin("|"),
+        )
+    }
+
+    private fun parseCustomCommand(
+        parser: JsonParser,
+        commandLocation: JsonLocation,
+        commandName: String,
+    ): YamlFluentCommand {
+        val invocationName = commandName.removePrefix("$")
+        if (invocationName.isBlank()) {
+            throw ParseException(
+                location = commandLocation,
+                title = "Invalid Custom Command",
+                errorMessage = "Custom command names cannot be empty.",
+            )
+        }
+
+        parser.nextToken()
+        val valueNode = parser.codec.readTree<JsonNode>(parser)
+        val customCommand = when {
+            valueNode == null || valueNode.isNull -> YamlCustomCommand(name = invocationName)
+            valueNode.isObject -> YamlCustomCommand(
+                name = invocationName,
+                namedArgs = valueNode.fields().asSequence().associate { (key, value) -> key to value.asText() }
+            )
+            valueNode.isArray -> YamlCustomCommand(
+                name = invocationName,
+                positionalArgs = valueNode.elements().asSequence().map { it.asText() }.toList()
+            )
+            else -> YamlCustomCommand(
+                name = invocationName,
+                positionalArgs = listOf(valueNode.asText())
+            )
+        }
+
+        val fluentCommand = YamlFluentCommand(
+            _location = commandLocation,
+            customCommand = customCommand,
+        )
+
+        val nextToken = parser.nextToken()
+        if (nextToken == JsonToken.END_OBJECT) return fluentCommand
+
+        if (nextToken == JsonToken.FIELD_NAME) {
+            val fieldName = parser.currentName()
+            throw ParseException(
+                location = parser.currentLocation(),
+                title = "Invalid Command Format: $commandName",
+                errorMessage = """
+                    |Found unexpected top-level field: `$fieldName`. Missing an indent or dash?
+                """.trimMargin("|"),
+            )
+        }
+
+        throw ParseException(
+            location = commandLocation,
+            title = "Invalid Command Format: $commandName",
+            errorMessage = """
+                |Commands must be in the format: `<commandName>: <options>` eg. `$commandName: value`
             """.trimMargin("|"),
         )
     }
