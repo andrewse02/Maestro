@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Custom Command Fixture</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        margin: 40px;
+      }
+
+      main {
+        display: grid;
+        gap: 16px;
+        max-width: 480px;
+      }
+
+      label {
+        display: grid;
+        gap: 8px;
+      }
+
+      input {
+        padding: 10px 12px;
+        font-size: 16px;
+      }
+
+      #result {
+        min-height: 24px;
+      }
+
+      maestro {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <maestro name="search">
+      - tapOn: Search all products
+      - inputText: $0
+    </maestro>
+
+    <main>
+      <h1>Custom Command Fixture</h1>
+
+      <label for="search-input">
+        Search all products
+        <input
+          id="search-input"
+          aria-label="Search all products"
+          placeholder="Search all products"
+        />
+      </label>
+
+      <div id="result" aria-live="polite"></div>
+    </main>
+
+    <script>
+      const input = document.getElementById("search-input");
+      const result = document.getElementById("result");
+
+      input.addEventListener("input", () => {
+        result.textContent = input.value;
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,9 @@
+url: http://127.0.0.1:8123/custom-command.html
+tags:
+  - web
+  - failing
+---
+- launchApp
+- assertVisible: Search all products
+- $search: shoes
+- assertVisible: shoes

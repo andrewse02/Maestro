@@ -23,26 +23,50 @@ case "$platform" in
 esac
 
 mkfifo pipe
-trap 'rm -f pipe' EXIT
+server_pid=""
+cleanup() {
+	rm -f pipe
+	if [ -n "$server_pid" ]; then
+		kill "$server_pid" 2>/dev/null || true
+	fi
+}
+trap cleanup EXIT
 
 export MAESTRO_EXAMPLE="test-value"  # Relied upon in a test
 
 if [ "$platform" = "web" ]; then
 	###
-	### Web: run web-tagged tests for demo_app only
+	### Web: run self-contained web-tagged workspaces
 	###
-	workspace_dir="./workspaces/demo_app"
-	app_name="demo_app"
+	python3 -m http.server 8123 --directory ./web-fixtures >/tmp/maestro-web-fixture.log 2>&1 &
+	server_pid=$!
 
-	_h1 "run tests for app \"$app_name\" on platform \"$platform\""
-	_h2 "$app_name" "run web tests"
+	for workspace_dir in ./workspaces/*; do
+		app_name="$(basename "$workspace_dir")"
 
-	while IFS= read -r line; do
-		_h3 "$app_name" "web" "$line"
-	done < pipe &
+		rg -l '^[[:space:]]*-[[:space:]]*web[[:space:]]*$' "$workspace_dir" >/dev/null || continue
 
-	maestro --verbose --platform "$platform" test --headless --include-tags web --exclude-tags "$exclude_tags" "$workspace_dir" 1>pipe 2>&1 \
-		|| { _h2 "$app_name" "FAIL! Expected all pass, but at least some failed instead"; ALL_PASS=false; }
+		_h1 "run tests for app \"$app_name\" on platform \"$platform\""
+		_h2 "$app_name" "run passing tests"
+
+		while IFS= read -r line; do
+			_h3 "$app_name" "passing" "$line"
+		done < pipe &
+
+		maestro --verbose --platform "$platform" test --headless --include-tags web,passing --exclude-tags "$exclude_tags" "$workspace_dir" 1>pipe 2>&1 \
+			|| { _h2 "$app_name" "FAIL! Expected all pass, but at least some failed instead"; ALL_PASS=false; }
+
+		rg -l '^[[:space:]]*-[[:space:]]*failing[[:space:]]*$' "$workspace_dir" >/dev/null || continue
+
+		_h2 "$app_name" "run failing tests"
+
+		while IFS= read -r line; do
+			_h3 "$app_name" "failing" "$line"
+		done < pipe &
+
+		maestro --verbose --platform "$platform" test --headless --include-tags web,failing --exclude-tags "$exclude_tags" "$workspace_dir" 1>pipe 2>&1 \
+			&& { _h2 "$app_name" "FAIL! Expected all to fail, but at least some passed instead"; ALL_PASS=false; }
+	done
 else
 	for workspace_dir in ./workspaces/*; do
 		app_name="$(basename "$workspace_dir")"
