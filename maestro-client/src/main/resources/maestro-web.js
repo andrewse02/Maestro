@@ -138,7 +138,7 @@
     }
 
     maestro.getCustomCommands = () => {
-        return Array.from(document.querySelectorAll('maestro'))
+        return Array.from(document.querySelectorAll('x-maestro'))
             .map((node) => {
                 const rawNames = node.getAttribute('name') || ''
                 const names = rawNames
