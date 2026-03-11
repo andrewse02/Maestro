@@ -39,6 +39,7 @@ import maestro.ViewHierarchy
 import maestro.ai.cloud.Defect
 import maestro.ai.CloudAIPredictionEngine
 import maestro.ai.AIPredictionEngine
+import maestro.device.Platform
 import maestro.js.GraalJsEngine
 import maestro.js.JsEngine
 import maestro.js.RhinoJsEngine
@@ -49,6 +50,7 @@ import maestro.orchestra.geo.Traveller
 import maestro.orchestra.util.calculateElementRelativePoint
 import maestro.orchestra.util.Env.evaluateScripts
 import maestro.orchestra.yaml.YamlCommandReader
+import maestro.orchestra.yaml.MaestroFlowParser
 import maestro.toSwipeDirection
 import maestro.utils.Insight
 import maestro.utils.Insights
@@ -378,6 +380,7 @@ class Orchestra(
             is AddMediaCommand -> addMediaCommand(command.mediaPaths)
             is SetAirplaneModeCommand -> setAirplaneMode(command)
             is ToggleAirplaneModeCommand -> toggleAirplaneMode()
+            is CustomCommand -> customCommand(command, config)
             is RetryCommand -> retryCommand(command, config)
             else -> true
         }.also { mutating ->
@@ -399,6 +402,136 @@ class Orchestra(
     private fun toggleAirplaneMode(): Boolean {
         maestro.setAirplaneModeState(!maestro.isAirplaneModeEnabled())
         return true
+    }
+
+    private suspend fun customCommand(command: CustomCommand, config: MaestroConfig?): Boolean {
+        if (maestro.cachedDeviceInfo.platform != Platform.WEB) {
+            error("Custom commands are only supported on web")
+        }
+
+        val availableCommands = maestro.driver.customCommands()
+        val resolved = resolveCustomCommand(command, availableCommands)
+            ?: error(
+                buildString {
+                    append("Unknown custom command: $")
+                    append(command.name)
+                    if (availableCommands.isNotEmpty()) {
+                        append(". Available custom commands: ")
+                        append(
+                            availableCommands
+                                .flatMap { it.names }
+                                .distinct()
+                                .sorted()
+                                .joinToString(", ")
+                        )
+                    }
+                }
+            )
+
+        val expandedYaml = substituteCustomCommandArguments(
+            body = normalizeCustomCommandBody(resolved.definition.body),
+            arguments = resolved.arguments,
+        )
+        val expandedCommands = MaestroFlowParser.parseCommands(
+            flowPath = Paths.get("/custom-command"),
+            appId = config?.appId.orEmpty(),
+            commandsYaml = expandedYaml,
+        )
+
+        var mutating = false
+        for (expandedCommand in expandedCommands) {
+            mutating = executeCommand(expandedCommand, config) || mutating
+        }
+        return mutating
+    }
+
+    private data class ResolvedCustomCommand(
+        val definition: maestro.CustomCommandDefinition,
+        val arguments: Map<String, String>,
+    )
+
+    private fun resolveCustomCommand(
+        command: CustomCommand,
+        definitions: List<maestro.CustomCommandDefinition>,
+    ): ResolvedCustomCommand? {
+        val baseArguments = buildMap {
+            command.positionalArgs.forEachIndexed { index, value ->
+                put(index.toString(), value)
+            }
+            putAll(command.namedArgs)
+        }
+
+        val invocationSignatures = buildList {
+            add(command.name)
+            if (command.positionalArgs.isNotEmpty()) {
+                add("${command.name}: ${command.positionalArgs.joinToString(", ")}")
+            }
+        }
+
+        val matches = definitions.flatMap { definition ->
+            definition.names.mapNotNull { alias ->
+                invocationSignatures.firstNotNullOfOrNull { invocation ->
+                    matchCustomCommandAlias(alias, invocation)?.let { capturedArguments ->
+                        ResolvedCustomCommand(
+                            definition = definition,
+                            arguments = baseArguments + capturedArguments,
+                        )
+                    }
+                }
+            }
+        }
+
+        if (matches.size > 1) {
+            error("Ambiguous custom command: $${command.name}")
+        }
+
+        return matches.singleOrNull()
+    }
+
+    private fun matchCustomCommandAlias(alias: String, invocation: String): Map<String, String>? {
+        val placeholderPattern = Regex("""\$\{(\w+)}""")
+        val placeholders = placeholderPattern.findAll(alias).map { it.groupValues[1] }.toList()
+
+        if (placeholders.isEmpty()) {
+            return if (alias == invocation) emptyMap() else null
+        }
+
+        val regexPattern = buildString {
+            append("^")
+            var currentIndex = 0
+            placeholderPattern.findAll(alias).forEach { match ->
+                append(Regex.escape(alias.substring(currentIndex, match.range.first)))
+                append("(.+?)")
+                currentIndex = match.range.last + 1
+            }
+            append(Regex.escape(alias.substring(currentIndex)))
+            append("$")
+        }
+
+        val matchResult = Regex(regexPattern).matchEntire(invocation) ?: return null
+        return placeholders.mapIndexed { index, key ->
+            key to matchResult.groupValues[index + 1]
+        }.toMap()
+    }
+
+    private fun substituteCustomCommandArguments(body: String, arguments: Map<String, String>): String {
+        return arguments.entries
+            .sortedByDescending { it.key.length }
+            .fold(body) { acc, (key, value) ->
+                acc.replace("$$key", value).replace("{$key}", value)
+            }
+    }
+
+    private fun normalizeCustomCommandBody(body: String): String {
+        val lines = body.lines()
+        val nonBlankLines = lines.filter { it.isNotBlank() }
+        val commonIndent = nonBlankLines.minOfOrNull { line ->
+            line.indexOfFirst { !it.isWhitespace() }.let { if (it == -1) line.length else it }
+        } ?: 0
+
+        return lines.joinToString("\n") { line ->
+            if (line.length >= commonIndent) line.drop(commonIndent) else line
+        }.trim()
     }
 
     private fun travelCommand(command: TravelCommand): Boolean {
@@ -1670,4 +1803,3 @@ class Orchestra(
     val isPaused: Boolean
         get() = flowController.isPaused
 }
-

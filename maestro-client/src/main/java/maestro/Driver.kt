@@ -110,4 +110,8 @@ interface Driver {
         return listOf()
     }
 
+    fun customCommands(): List<CustomCommandDefinition> {
+        return emptyList()
+    }
+
 }

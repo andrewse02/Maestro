@@ -137,6 +137,24 @@
         });
     }
 
+    maestro.getCustomCommands = () => {
+        return Array.from(document.querySelectorAll('maestro'))
+            .map((node) => {
+                const rawNames = node.getAttribute('name') || ''
+                const names = rawNames
+                    .split(',')
+                    .map((name) => name.trim())
+                    .filter(Boolean)
+                const body = node.textContent || ''
+
+                return {
+                    names,
+                    body,
+                }
+            })
+            .filter((command) => command.names.length > 0 && command.body.trim().length > 0)
+    }
+
     maestro.tapOnSyntheticElement = (x, y) => {
         // This function is used to tap on synthetic elements like <option> that do not have a visual representation.
         // It will return the bounds of the synthetic element in a special coordinate space.

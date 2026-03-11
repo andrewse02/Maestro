@@ -561,6 +561,17 @@ object MaestroFlowParser {
         }
     }
 
+    fun parseCommands(flowPath: Path, appId: String, commandsYaml: String): List<MaestroCommand> {
+        MAPPER.createParser(commandsYaml).use { parser ->
+            try {
+                return parseCommands(parser)
+                    .flatMap { it.toCommands(flowPath, appId) }
+            } catch (e: Throwable) {
+                throw wrapException(e, parser, flowPath, commandsYaml)
+            }
+        }
+    }
+
     fun parseConfigOnly(flowPath: Path, flow: String): YamlConfig {
         MAPPER.createParser(flow).use { parser ->
             try {

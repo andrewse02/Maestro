@@ -277,6 +277,24 @@ class CdpWebDriver(
         return root
     }
 
+    override fun customCommands(): List<maestro.CustomCommandDefinition> {
+        ensureOpen()
+
+        val jsResult = executeJS("window.maestro.getCustomCommands()") ?: return emptyList()
+        val commands = jsResult as? List<Map<String, Any>> ?: return emptyList()
+
+        return commands.mapNotNull { command ->
+            val names = (command["names"] as? List<*>)?.mapNotNull { it?.toString() } ?: emptyList()
+            val body = command["body"]?.toString().orEmpty()
+
+            if (names.isEmpty() || body.isBlank()) {
+                null
+            } else {
+                maestro.CustomCommandDefinition(names = names, body = body)
+            }
+        }
+    }
+
     fun parseDomAsTreeNodes(domRepresentation: Map<String, Any>): TreeNode {
         val attrs = domRepresentation["attributes"] as Map<String, Any>
 
