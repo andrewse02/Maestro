@@ -58,12 +58,55 @@ import maestro.orchestra.yaml.junit.YamlCommandsExtension
 import maestro.orchestra.yaml.junit.YamlFile
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.jupiter.api.io.TempDir
 import java.nio.file.FileSystems
+import java.nio.file.Path
 import java.nio.file.Paths
+import kotlin.io.path.writeText
 
 @Suppress("JUnitMalformedDeclaration")
 @ExtendWith(YamlCommandsExtension::class)
 internal class YamlCommandReaderTest {
+
+    @Test
+    fun web_custom_command_expands_commands_from_app_source(@TempDir tempDir: Path) {
+        tempDir.resolve("app.tsx").writeText(
+            """
+            <maestro name="enterEmail">
+              - tapOn: Username or email
+              - inputText: $0
+            </maestro>
+            """.trimIndent()
+        )
+        val flowPath = tempDir.resolve("Flow.yaml")
+        flowPath.writeText(
+            """
+            appId: https://example.com
+            ---
+            - enterEmail: leland@mobile.dev
+            """.trimIndent()
+        )
+
+        val commands = YamlCommandReader.readCommands(flowPath)
+            .map(MaestroCommand::asCommand)
+
+        assertThat(commands).containsExactly(
+            ApplyConfigurationCommand(
+                config = MaestroConfig(
+                    appId = "https://example.com"
+                )
+            ),
+            TapOnElementCommand(
+                selector = ElementSelector(textRegex = "Username or email"),
+                retryIfNoChange = false,
+                waitUntilVisible = false,
+                longPress = false,
+            ),
+            InputTextCommand(
+                text = "leland@mobile.dev"
+            ),
+        ).inOrder()
+    }
 
     @Test
     fun launchApp(
