@@ -264,6 +264,7 @@ class CdpWebDriver(
             contentDesc = executeJS("window.maestro.getContentDescription()")
             if (contentDesc == null) {
                 retry++
+                sleep(100)
             }
             if (retry == RETRY_FETCHING_CONTENT_DESCRIPTION) {
                 throw IllegalStateException("Could not retrieve hierarchy through maestro.getContentDescription() (tried $retry times")
