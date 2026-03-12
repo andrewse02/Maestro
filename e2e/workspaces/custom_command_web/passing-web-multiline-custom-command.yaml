@@ -4,7 +4,7 @@ tags:
   - passing
 ---
 - launchApp
-- $login:
+- login user:
     email: leland@mobile.dev
     password: secret123
 - assertVisible: Signed in as leland@mobile.dev

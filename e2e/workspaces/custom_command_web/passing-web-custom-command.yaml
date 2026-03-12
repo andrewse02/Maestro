@@ -5,5 +5,5 @@ tags:
 ---
 - launchApp
 - assertVisible: Search all products
-- $search: shoes
+- search products: shoes
 - assertVisible: shoes

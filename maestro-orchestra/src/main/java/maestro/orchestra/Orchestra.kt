@@ -486,7 +486,7 @@ class Orchestra(
         }
 
         if (matches.size > 1) {
-            error("Ambiguous custom command: $${command.name}")
+            error("Ambiguous custom command: ${command.name}")
         }
 
         return matches.singleOrNull()
@@ -502,7 +502,7 @@ class Orchestra(
             .sorted()
 
         val message = buildString {
-            append("Custom command not found: $")
+            append("Custom command not found: ")
             append(command.name)
             if (availableCommandNames.isNotEmpty()) {
                 append(". Available custom commands: ")
@@ -511,7 +511,7 @@ class Orchestra(
         }
 
         val debugMessage = buildString {
-            append("Custom command $")
+            append("Custom command ")
             append(command.name)
             append(" was not exposed by the current UI before the lookup timeout elapsed.")
             if (availableCommandNames.isNotEmpty()) {

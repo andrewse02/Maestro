@@ -24,8 +24,8 @@ Do not add tags for purely decorative UI or for interactions that provide no tes
 - Use `<x-maestro>` for reusable test actions exposed by the UI.
 - Keep each tag close to the production UI it describes so it changes with the feature.
 - The command body must describe the real user interaction path through the current UI.
-- Prefer stable command names that describe intent, such as `login`, `openFilters`, or `search`.
-- When the UI is dynamic, prefer parameterized names such as ``toggleFilter: ${filterId}`` or aliases such as ``[`viewProduct${i}`, `viewProduct: ${productId}`]``.
+- Prefer stable command names that describe intent and include a space, such as `login user`, `open filters`, or `search products`.
+- When the UI is dynamic, prefer parameterized names such as ``toggle filter: ${filterId}`` or aliases such as ``[`view product ${i}`, `view product: ${productId}`]``.
 - If production code changes the interaction path, labels, ids, or required arguments, update the `x-maestro` tag in the same change.
 - Do not leave stale tags in place after UI refactors.
 
@@ -47,7 +47,7 @@ you must check whether an `x-maestro` tag or Maestro flow is affected and update
 ## Flow Authoring Rules
 
 - Prefer custom commands in flows when they make the test more readable.
-- Use `$commandName` invocation syntax for custom commands.
+- Invoke custom commands by name directly. Custom command names must include a space.
 - Use named args when the action is clearer with explicit keys.
 - Use positional args only for simple one-argument commands.
 - Keep flows focused on user-visible behavior, not implementation details.
@@ -56,11 +56,11 @@ you must check whether an `x-maestro` tag or Maestro flow is affected and update
 Example:
 
 ```yaml
-- $login:
+- login user:
     email: leland@mobile.dev
     password: ${PASSWORD}
-- $openFilters
-- $toggleFilter: men
+- open filters
+- toggle filter: men
 - assertVisible: Results
 ```
 

@@ -324,18 +324,10 @@ private object YamlCommandDeserializer : JsonDeserializer<YamlFluentCommand>() {
     private fun parseStringCommand(parser: JsonParser): YamlFluentCommand {
         val commandLocation = parser.currentLocation()
         val commandText = parser.text
-        if (commandText.startsWith("$")) {
-            val invocationName = commandText.removePrefix("$")
-            if (invocationName.isBlank()) {
-                throw ParseException(
-                    location = commandLocation,
-                    title = "Invalid Custom Command",
-                    errorMessage = "Custom command names cannot be empty.",
-                )
-            }
+        if (isCustomCommandName(commandText)) {
             return YamlFluentCommand(
                 _location = commandLocation,
-                customCommand = YamlCustomCommand(name = invocationName),
+                customCommand = YamlCustomCommand(name = commandText),
             )
         }
         val command = stringCommands[commandText]
@@ -365,7 +357,7 @@ private object YamlCommandDeserializer : JsonDeserializer<YamlFluentCommand>() {
     private fun parseObjectCommand(parser: JsonParser): YamlFluentCommand {
         val commandLocation = parser.currentLocation()
         val commandName = parser.nextFieldName()
-        if (commandName.startsWith("$")) {
+        if (isCustomCommandName(commandName)) {
             return parseCustomCommand(parser, commandLocation, commandName)
         }
         val commandParameter = yamlFluentCommandParameters.firstOrNull { it.name == commandName }
@@ -439,29 +431,28 @@ private object YamlCommandDeserializer : JsonDeserializer<YamlFluentCommand>() {
         commandLocation: JsonLocation,
         commandName: String,
     ): YamlFluentCommand {
-        val invocationName = commandName.removePrefix("$")
-        if (invocationName.isBlank()) {
+        if (!isCustomCommandName(commandName)) {
             throw ParseException(
                 location = commandLocation,
                 title = "Invalid Custom Command",
-                errorMessage = "Custom command names cannot be empty.",
+                errorMessage = "Custom command names must include a space.",
             )
         }
 
         parser.nextToken()
         val valueNode = parser.codec.readTree<JsonNode>(parser)
         val customCommand = when {
-            valueNode == null || valueNode.isNull -> YamlCustomCommand(name = invocationName)
+            valueNode == null || valueNode.isNull -> YamlCustomCommand(name = commandName)
             valueNode.isObject -> YamlCustomCommand(
-                name = invocationName,
+                name = commandName,
                 namedArgs = valueNode.fields().asSequence().associate { (key, value) -> key to value.asText() }
             )
             valueNode.isArray -> YamlCustomCommand(
-                name = invocationName,
+                name = commandName,
                 positionalArgs = valueNode.elements().asSequence().map { it.asText() }.toList()
             )
             else -> YamlCustomCommand(
-                name = invocationName,
+                name = commandName,
                 positionalArgs = listOf(valueNode.asText())
             )
         }
@@ -492,6 +483,10 @@ private object YamlCommandDeserializer : JsonDeserializer<YamlFluentCommand>() {
                 |Commands must be in the format: `<commandName>: <options>` eg. `$commandName: value`
             """.trimMargin("|"),
         )
+    }
+
+    private fun isCustomCommandName(commandName: String): Boolean {
+        return commandName.any(Char::isWhitespace)
     }
 
     private fun suggestCommandMessage(invalidCommand: String): String {

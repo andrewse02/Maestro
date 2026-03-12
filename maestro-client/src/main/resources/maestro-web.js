@@ -174,6 +174,14 @@
                     .split(',')
                     .map((name) => name.trim())
                     .filter(Boolean)
+                names
+                    .filter((name) => !/\s/.test(name))
+                    .forEach((name) => {
+                        console.warn(
+                            `[Maestro] Custom command name "${name}" should include a space. ` +
+                            `Commands without spaces will not be invokable from Maestro flows.`
+                        )
+                    })
                 const body = node.textContent || ''
 
                 return {
