@@ -1,13 +1,19 @@
 package maestro.cli.mcp.tools
 
-import io.modelcontextprotocol.kotlin.sdk.*
+import io.modelcontextprotocol.kotlin.sdk.CallToolResult
+import io.modelcontextprotocol.kotlin.sdk.ImageContent
+import io.modelcontextprotocol.kotlin.sdk.TextContent
+import io.modelcontextprotocol.kotlin.sdk.Tool
 import io.modelcontextprotocol.kotlin.sdk.server.RegisteredTool
-import kotlinx.serialization.json.*
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 import maestro.cli.session.MaestroSessionManager
 import okio.Buffer
-import java.util.Base64
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.util.Base64
 import javax.imageio.ImageIO
 
 object TakeScreenshotTool {
@@ -29,14 +35,14 @@ object TakeScreenshotTool {
         ) { request ->
             try {
                 val deviceId = request.arguments["device_id"]?.jsonPrimitive?.content
-                
+
                 if (deviceId == null) {
                     return@RegisteredTool CallToolResult(
                         content = listOf(TextContent("device_id is required")),
                         isError = true
                     )
                 }
-                
+
                 val result = sessionManager.newSession(
                     host = null,
                     port = null,
@@ -47,23 +53,23 @@ object TakeScreenshotTool {
                     val buffer = Buffer()
                     session.maestro.takeScreenshot(buffer, true)
                     val pngBytes = buffer.readByteArray()
-                    
-                    // Convert PNG to JPEG
+
                     val pngImage = ImageIO.read(ByteArrayInputStream(pngBytes))
                     val jpegOutput = ByteArrayOutputStream()
                     ImageIO.write(pngImage, "JPEG", jpegOutput)
                     val jpegBytes = jpegOutput.toByteArray()
-                    
-                    val base64 = Base64.getEncoder().encodeToString(jpegBytes)
-                    base64
+
+                    Base64.getEncoder().encodeToString(jpegBytes)
                 }
-                
-                val imageContent = ImageContent(
-                    data = result,
-                    mimeType = "image/jpeg"
+
+                CallToolResult(
+                    content = listOf(
+                        ImageContent(
+                            data = result,
+                            mimeType = "image/jpeg"
+                        )
+                    )
                 )
-                
-                CallToolResult(content = listOf(imageContent))
             } catch (e: Exception) {
                 CallToolResult(
                     content = listOf(TextContent("Failed to take screenshot: ${e.message}")),

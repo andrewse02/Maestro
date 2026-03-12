@@ -9,7 +9,7 @@ import maestro.cli.util.WorkingDirectory
 @CommandLine.Command(
     name = "mcp",
     description = [
-        "Starts the Maestro MCP server, exposing Maestro device and automation commands as Model Context Protocol (MCP) tools over STDIO for LLM agents and automation clients."
+        "Starts the Maestro MCP server, exposing view hierarchy inspection, screenshots, and flow-file execution as Model Context Protocol (MCP) tools over STDIO."
     ],
 )
 class McpCommand : Callable<Int> {
