@@ -435,7 +435,7 @@ private object YamlCommandDeserializer : JsonDeserializer<YamlFluentCommand>() {
             throw ParseException(
                 location = commandLocation,
                 title = "Invalid Custom Command",
-                errorMessage = "Custom command names must include a space.",
+                errorMessage = "Custom command names must start with a capital letter.",
             )
         }
 
@@ -486,7 +486,7 @@ private object YamlCommandDeserializer : JsonDeserializer<YamlFluentCommand>() {
     }
 
     private fun isCustomCommandName(commandName: String): Boolean {
-        return commandName.any(Char::isWhitespace)
+        return commandName.trimStart().firstOrNull()?.isUpperCase() == true
     }
 
     private fun suggestCommandMessage(invalidCommand: String): String {

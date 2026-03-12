@@ -70,10 +70,10 @@ import kotlin.io.path.writeText
 internal class YamlCommandReaderTest {
 
     @Test
-    fun web_custom_command_parses_space_named_runtime_invocations(@TempDir tempDir: Path) {
+    fun web_custom_command_parses_capitalized_runtime_invocations(@TempDir tempDir: Path) {
         tempDir.resolve("app.tsx").writeText(
             """
-            <maestro name="login user">
+            <maestro name="Login user">
               - tapOn: Username or email
               - inputText: ${'$'}email
               - tapOn: Password
@@ -81,22 +81,22 @@ internal class YamlCommandReaderTest {
               - tapOn: submit
             </maestro>
 
-            <maestro name="search products">
+            <maestro name="Search products">
               - tapOn: Search all products
               - inputText: ${'$'}0
             </maestro>
 
-            <maestro name="open filters">
+            <maestro name="Open filters">
               - tapOn:
                   id: filter-icon
             </maestro>
 
-            <maestro name={`toggle filter: ${'$'}{filterId}`}>
+            <maestro name={`Toggle filter: ${'$'}{filterId}`}>
               - tapOn:
                   id: {filterId}
             </maestro>
 
-            <maestro name={[`view product ${'$'}{i}`, `view product: ${'$'}{productId}`]}>
+            <maestro name={[`View product ${'$'}{i}`, `View product: ${'$'}{productId}`]}>
               - tapOn:
                   id: product-row-{productId}
             </maestro>
@@ -107,13 +107,13 @@ internal class YamlCommandReaderTest {
             """
             appId: https://example.com
             ---
-            - login user:
+            - Login user:
                 email: leland@mobile.dev
                 password: ${'$'}{PASSWORD}
-            - search products: shoes
-            - open filters
-            - toggle filter: men
-            - view product 0
+            - Search products: shoes
+            - Open filters
+            - Toggle filter: men
+            - View product 0
             - tapOn: Close
             """.trimIndent()
         )
@@ -128,25 +128,25 @@ internal class YamlCommandReaderTest {
                 )
             ),
             CustomCommand(
-                name = "login user",
+                name = "Login user",
                 namedArgs = mapOf(
                     "email" to "leland@mobile.dev",
                     "password" to "\${PASSWORD}",
                 ),
             ),
             CustomCommand(
-                name = "search products",
+                name = "Search products",
                 positionalArgs = listOf("shoes"),
             ),
             CustomCommand(
-                name = "open filters",
+                name = "Open filters",
             ),
             CustomCommand(
-                name = "toggle filter",
+                name = "Toggle filter",
                 positionalArgs = listOf("men"),
             ),
             CustomCommand(
-                name = "view product 0",
+                name = "View product 0",
             ),
             TapOnElementCommand(
                 selector = ElementSelector(textRegex = "Close"),
