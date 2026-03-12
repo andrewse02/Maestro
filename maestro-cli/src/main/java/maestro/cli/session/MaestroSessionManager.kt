@@ -61,6 +61,7 @@ object MaestroSessionManager {
 
     private val executor = Executors.newScheduledThreadPool(1)
     private val logger = LoggerFactory.getLogger(MaestroSessionManager::class.java)
+    private var sharedWebMaestro: Maestro? = null
 
 
     fun <T> newSession(
@@ -220,7 +221,12 @@ object MaestroSessionManager {
                         platformConfiguration = platformConfiguration
                     )
 
-                    Platform.WEB -> pickWebDevice(isStudio, isHeadless, screenSize)
+                    Platform.WEB -> pickWebDevice(
+                        isStudio = isStudio,
+                        isHeadless = isHeadless,
+                        screenSize = screenSize,
+                        connectToExistingSession = connectToExistingSession,
+                    )
                 },
                 device = selectedDevice.device,
             )
@@ -249,7 +255,12 @@ object MaestroSessionManager {
             )
 
             selectedDevice.platform == Platform.WEB -> MaestroSession(
-                maestro = pickWebDevice(isStudio, isHeadless, screenSize),
+                maestro = pickWebDevice(
+                    isStudio = isStudio,
+                    isHeadless = isHeadless,
+                    screenSize = screenSize,
+                    connectToExistingSession = connectToExistingSession,
+                ),
                 device = null
             )
 
@@ -445,8 +456,21 @@ object MaestroSessionManager {
         )
     }
 
-    private fun pickWebDevice(isStudio: Boolean, isHeadless: Boolean, screenSize: String?): Maestro {
-        return Maestro.web(isStudio, isHeadless, screenSize)
+    private fun pickWebDevice(
+        isStudio: Boolean,
+        isHeadless: Boolean,
+        screenSize: String?,
+        connectToExistingSession: Boolean,
+    ): Maestro {
+        synchronized(this) {
+            if (connectToExistingSession) {
+                sharedWebMaestro?.let { return it }
+            }
+
+            val maestro = Maestro.web(isStudio, isHeadless, screenSize)
+            sharedWebMaestro = maestro
+            return maestro
+        }
     }
 
     private data class SelectedDevice(
