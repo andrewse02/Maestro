@@ -13,7 +13,7 @@ import maestro.cli.session.MaestroSessionManager
 import maestro.debuglog.LogConfig
 import maestro.cli.mcp.tools.InspectCustomCommandsTool
 import maestro.cli.mcp.tools.InspectViewHierarchyTool
-import maestro.cli.mcp.tools.RunFlowFilesTool
+import maestro.cli.mcp.tools.RunFlowTool
 import maestro.cli.mcp.tools.TakeScreenshotTool
 import maestro.cli.util.WorkingDirectory
 
@@ -39,7 +39,7 @@ fun runMaestroMcpServer() {
 
     // Register tools
     server.addTools(listOf(
-        RunFlowFilesTool.create(sessionManager),
+        RunFlowTool.create(sessionManager),
         InspectViewHierarchyTool.create(sessionManager),
         InspectCustomCommandsTool.create(sessionManager),
         TakeScreenshotTool.create(sessionManager),

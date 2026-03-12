@@ -6,7 +6,7 @@ The Maestro MCP (Model Context Protocol) server exposes a minimal tool surface f
 - inspect the current view hierarchy
 - inspect the current list of custom commands
 - take a screenshot of the current device
-- run Maestro flow files
+- run ad hoc Maestro flow YAML or a flow file path
 
 The MCP server is designed to stay narrow and predictable. It runs as part of the Maestro CLI and communicates over a standardized protocol.
 
@@ -15,7 +15,7 @@ The MCP server is designed to stay narrow and predictable. It runs as part of th
 - Exposes `inspect_view_hierarchy`
 - Exposes `inspect_custom_commands`
 - Exposes `take_screenshot`
-- Exposes `run_flow_files`
+- Exposes `run_flow`
 - Uses STDIO transport for MCP clients
 
 ## Running the MCP Server
@@ -37,7 +37,7 @@ The server currently registers only:
 - `inspect_view_hierarchy`
 - `inspect_custom_commands`
 - `take_screenshot`
-- `run_flow_files`
+- `run_flow`
 
 Keep this list intentionally small unless there is a strong reason to expand it.
 
