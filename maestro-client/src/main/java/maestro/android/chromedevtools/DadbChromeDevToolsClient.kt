@@ -93,7 +93,12 @@ class DadbChromeDevToolsClient(private val dadb: Dadb): Closeable {
             .filter { it.visible }
             .mapNotNull { info ->
                 try {
-                    evaluateScript<RuntimeResponse<TreeNode>>(info.socketName, info.webSocketDebuggerUrl, "$script; maestro.viewportX = ${info.screenX}; maestro.viewportY = ${info.screenY}; maestro.viewportWidth = ${info.width}; maestro.viewportHeight = ${info.height}; window.maestro.getContentDescription();").result.value
+                    val treeJson = evaluateScript<RuntimeResponse<String>>(
+                        info.socketName,
+                        info.webSocketDebuggerUrl,
+                        "$script; maestro.viewportX = ${info.screenX}; maestro.viewportY = ${info.screenY}; maestro.viewportWidth = ${info.width}; maestro.viewportHeight = ${info.height}; window.maestro.getContentDescription();"
+                    ).result.value
+                    json.readValue<TreeNode>(treeJson)
                 } catch (e: IOException) {
                     logger.warn("Failed to retrieve WebView hierarchy from chrome devtools: ${info.socketName} ${info.webSocketDebuggerUrl}", e)
                     null

@@ -50,6 +50,7 @@ class CdpWebDriver(
     private val isHeadless: Boolean = false,
     private val screenSize: String?
 ) : Driver {
+    private val objectMapper = jacksonObjectMapper()
 
     private lateinit var cdpClient: CdpClient
 
@@ -261,7 +262,10 @@ class CdpWebDriver(
         var contentDesc: Any? = null
         var retry = 0
         while (contentDesc == null) {
-            contentDesc = executeJS("window.maestro.getContentDescription()")
+            val contentDescJson = executeJS("window.maestro.getContentDescription()") as? String
+            if (contentDescJson != null) {
+                contentDesc = objectMapper.readValue(contentDescJson, Any::class.java)
+            }
             if (contentDesc == null) {
                 retry++
                 sleep(100)
@@ -615,7 +619,7 @@ class CdpWebDriver(
     }
 
     override fun waitForAppToSettle(initialHierarchy: ViewHierarchy?, appId: String?, timeoutMs: Int?): ViewHierarchy {
-        return ScreenshotUtils.waitForAppToSettle(initialHierarchy, this)
+        return ScreenshotUtils.waitForAppToSettle(initialHierarchy, this, timeoutMs)
     }
 
     override fun waitUntilScreenIsStatic(timeoutMs: Long): Boolean {

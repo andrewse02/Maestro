@@ -123,8 +123,37 @@
     maestro.viewportWidth = 0;
     maestro.viewportHeight = 0;
 
+    const isSerializableAttributeValue = (value) => {
+        const type = typeof value
+        return type === 'string' || type === 'number' || type === 'boolean'
+    }
+
+    const serializeTreeNode = (node) => {
+        // Guard against accidental DOM or framework objects leaking into the tree.
+        if (!node || typeof node !== 'object' || node.nodeType) {
+            return null
+        }
+
+        const attributes = {}
+        for (const [key, value] of Object.entries(node.attributes || {})) {
+            if (isSerializableAttributeValue(value)) {
+                attributes[key] = value
+            }
+        }
+
+        return {
+            attributes,
+            children: (Array.isArray(node.children) ? node.children : [])
+                .map(serializeTreeNode)
+                .filter(child => child !== null),
+        }
+    }
+
     maestro.getContentDescription = () => {
-        return traverse(document.body)
+        // CDP struggles to return large nested objects by value, so web drivers fetch
+        // a JSON string that only includes the stable hierarchy fields Maestro needs.
+        const tree = traverse(document.body)
+        return tree ? JSON.stringify(serializeTreeNode(tree)) : null
     }
 
     maestro.queryCss = (selector) => {

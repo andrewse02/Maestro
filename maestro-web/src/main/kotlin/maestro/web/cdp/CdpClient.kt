@@ -9,6 +9,7 @@ import io.ktor.websocket.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -61,65 +62,71 @@ class CdpClient(
     }
 
     /**
-     * Evaluates a JS expression on the given target, serializing the result via JSON.stringify.
+     * Evaluates a JS expression on the given target and returns the resulting value as JSON text.
      *
      * @param expression JS code to evaluate.
      * @param target The CDP target descriptor.
-     * @return A JSON string of the evaluated result.
+     * @return A JSON string representing the evaluated result.
      */
     suspend fun evaluate(expression: String, target: CdpTarget): String {
         val wsUrl = target.webSocketDebuggerUrl
-
-        // The idea here is that we return JSON object as a String. That makes it much easier to handle
-        // as passing objects between JS and outside world would require many round-trips to query the values
-        // from the browser.
-        val wrapped = """
-            JSON.stringify((() => {
-                try { return $expression }
-                catch(e) { return { __cdpError: e.toString() } }
-            })())
-        """.trimIndent()
-
-        val exprJson = Json.encodeToString(JsonPrimitive(wrapped))
-        val messageId = idCounter.getAndIncrement()
-        val payload = """
-            {
-                "id":$messageId,
-                "method":"Runtime.evaluate",
-                "params":{"expression":$exprJson,"awaitPromise":true}
-            }
-        """.trimIndent()
 
         return evalMutex.withLock {
             httpClient.webSocketSession {
                 url(wsUrl)
             }.use { session ->
-                session.send(Frame.Text(payload))
-
-                val text = session.waitForMessage(messageId)
-
-                // Parse JSON
-                val root = json.parseToJsonElement(text).jsonObject
-                val resultObj = root["result"]?.jsonObject
-                    ?.get("result")?.jsonObject
-                    ?: error("Invalid CDP response: $text")
-
-                val raw: String = resultObj["value"]?.jsonPrimitive?.content
-                    ?: ""
-
-                if (raw.isEmpty()) {
-                    return@use ""
-                }
-
-                // Check for JS error
-                val parsed = json.parseToJsonElement(raw)
-                if (parsed is JsonObject && parsed.jsonObject.containsKey("__cdpError")) {
-                    val err = parsed.jsonObject["__cdpError"]?.jsonPrimitive?.content
-                    error("JS error: $err")
-                }
-                return@use raw
+                val root = runtimeEvaluate(session, expression, returnByValue = true)
+                root["error"]?.let { error("CDP error: $it") }
+                root["exceptionDetails"]?.let { error("JS exception: $it") }
+                return@use extractResultValue(root)
             }
         }
+    }
+
+    private suspend fun runtimeEvaluate(
+        session: DefaultClientWebSocketSession,
+        expression: String,
+        returnByValue: Boolean,
+    ): JsonObject {
+        val exprJson = Json.encodeToString(JsonPrimitive(expression))
+        val messageId = idCounter.getAndIncrement()
+        val payload = """
+            {
+                "id":$messageId,
+                "method":"Runtime.evaluate",
+                "params":{"expression":$exprJson,"awaitPromise":true,"returnByValue":$returnByValue}
+            }
+        """.trimIndent()
+
+        session.send(Frame.Text(payload))
+        val text = session.waitForMessage(messageId)
+        return json.parseToJsonElement(text).jsonObject
+    }
+
+    private fun extractResultValue(root: JsonObject): String {
+        val resultObj = root["result"]?.jsonObject
+            ?.get("result")?.jsonObject
+            ?: error("Invalid CDP response: $root")
+        val value = resultObj["value"]
+        if (value != null) {
+            return value.toString()
+        }
+
+        if (resultObj["type"]?.jsonPrimitive?.content == "undefined") {
+            return "null"
+        }
+
+        val unserializable = resultObj["unserializableValue"]?.jsonPrimitive?.content
+        if (unserializable != null) {
+            return Json.encodeToString(String.serializer(), unserializable)
+        }
+
+        val description = resultObj["description"]?.jsonPrimitive?.content
+        if (description != null && resultObj["type"]?.jsonPrimitive?.content == "string") {
+            return Json.encodeToString(String.serializer(), description)
+        }
+
+        error("Unsupported CDP evaluate result: $resultObj")
     }
 
     suspend fun captureScreenshot(target: CdpTarget): ByteArray {

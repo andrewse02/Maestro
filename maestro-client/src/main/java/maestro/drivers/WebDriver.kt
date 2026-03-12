@@ -1,5 +1,6 @@
 package maestro.drivers
 
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import maestro.Capability
 import maestro.DeviceInfo
 import maestro.device.DeviceOrientation
@@ -229,8 +230,10 @@ class WebDriver(
         var contentDesc: Any? = null
         var retry = 0
         while (contentDesc == null) {
-            contentDesc = executeJS("return window.maestro.getContentDescription()")
-            if (contentDesc == null) {
+            val contentDescJson = executeJS("return window.maestro.getContentDescription()") as? String
+            if (contentDescJson != null) {
+                contentDesc = jacksonObjectMapper().readValue(contentDescJson, Any::class.java)
+            } else {
                 retry++
             }
             if (retry == RETRY_FETCHING_CONTENT_DESCRIPTION) {
