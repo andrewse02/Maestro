@@ -1,0 +1,10 @@
+url: http://127.0.0.1:8123/custom-command.html
+tags:
+  - web
+  - passing
+---
+- launchApp
+- $login:
+    email: leland@mobile.dev
+    password: secret123
+- assertVisible: Signed in as leland@mobile.dev

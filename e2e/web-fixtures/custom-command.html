@@ -26,7 +26,16 @@
         font-size: 16px;
       }
 
+      button {
+        padding: 10px 12px;
+        font-size: 16px;
+      }
+
       #result {
+        min-height: 24px;
+      }
+
+      #login-result {
         min-height: 24px;
       }
 
@@ -41,8 +50,41 @@
       - inputText: $0
     </x-maestro>
 
+    <x-maestro name="login">
+      - tapOn: Email
+      - inputText: $email
+      - tapOn: Password
+      - inputText: $password
+      - tapOn: Sign in
+    </x-maestro>
+
     <main>
       <h1>Custom Command Fixture</h1>
+
+      <section aria-label="Login form">
+        <label for="email-input">
+          Email
+          <input
+            id="email-input"
+            aria-label="Email"
+            placeholder="Email"
+          />
+        </label>
+
+        <label for="password-input">
+          Password
+          <input
+            id="password-input"
+            aria-label="Password"
+            placeholder="Password"
+            type="password"
+          />
+        </label>
+
+        <button id="sign-in-button" type="button">Sign in</button>
+
+        <div id="login-result" aria-live="polite"></div>
+      </section>
 
       <label for="search-input">
         Search all products
@@ -57,8 +99,21 @@
     </main>
 
     <script>
+      const emailInput = document.getElementById("email-input");
+      const passwordInput = document.getElementById("password-input");
+      const signInButton = document.getElementById("sign-in-button");
+      const loginResult = document.getElementById("login-result");
       const input = document.getElementById("search-input");
       const result = document.getElementById("result");
+
+      signInButton.addEventListener("click", () => {
+        if (!emailInput.value || !passwordInput.value) {
+          loginResult.textContent = "Missing credentials";
+          return;
+        }
+
+        loginResult.textContent = `Signed in as ${emailInput.value}`;
+      });
 
       input.addEventListener("input", () => {
         result.textContent = input.value;
