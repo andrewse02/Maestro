@@ -62,6 +62,44 @@ import kotlin.io.use
 private val logger = LoggerFactory.getLogger(Maestro::class.java)
 
 private const val DefaultDriverHostPort = 7001
+private const val CUSTOM_COMMAND_ACCESSIBILITY_PREFIX = "MaestroCustomCommand:"
+
+internal object AndroidCustomCommandExtractor {
+    fun extract(root: TreeNode): List<CustomCommandDefinition> {
+        return root.aggregate()
+            .mapNotNull { node ->
+                val accessibilityText = node.attributes["accessibilityText"]?.trim().orEmpty()
+                if (!accessibilityText.startsWith(CUSTOM_COMMAND_ACCESSIBILITY_PREFIX)) {
+                    return@mapNotNull null
+                }
+
+                val name = accessibilityText
+                    .removePrefix(CUSTOM_COMMAND_ACCESSIBILITY_PREFIX)
+                    .trim()
+                val body = normalizeBody(node.attributes["text"])
+
+                if (name.isBlank() || body.isBlank()) {
+                    null
+                } else {
+                    CustomCommandDefinition(
+                        names = listOf(name),
+                        body = body,
+                    )
+                }
+            }
+            .distinct()
+    }
+
+    private fun normalizeBody(body: String?): String {
+        if (body == null) return ""
+
+        return body
+            .lines()
+            .dropWhile { it.isBlank() }
+            .dropLastWhile { it.isBlank() }
+            .joinToString("\n")
+    }
+}
 
 class AndroidDriver(
     private val dadb: Dadb,
@@ -351,6 +389,12 @@ class AndroidDriver(
             } else {
                 treeNode
             }
+        }
+    }
+
+    override fun customCommands(): List<CustomCommandDefinition> {
+        return metrics.measured("operation", mapOf("command" to "customCommands")) {
+            AndroidCustomCommandExtractor.extract(contentDescriptor())
         }
     }
 

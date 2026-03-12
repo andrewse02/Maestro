@@ -405,10 +405,6 @@ class Orchestra(
     }
 
     private suspend fun customCommand(command: CustomCommand, config: MaestroConfig?): Boolean {
-        if (maestro.cachedDeviceInfo.platform != Platform.WEB) {
-            error("Custom commands are only supported on web")
-        }
-
         val resolved = findCustomCommand(command)
 
         val expandedYaml = substituteCustomCommandArguments(
