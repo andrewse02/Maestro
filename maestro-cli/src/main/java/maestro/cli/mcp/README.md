@@ -4,6 +4,7 @@
 
 The Maestro MCP (Model Context Protocol) server exposes a minimal tool surface for LLM agents:
 - inspect the current view hierarchy
+- inspect the current list of custom commands
 - take a screenshot of the current device
 - run Maestro flow files
 
@@ -12,6 +13,7 @@ The MCP server is designed to stay narrow and predictable. It runs as part of th
 ## Features
 
 - Exposes `inspect_view_hierarchy`
+- Exposes `inspect_custom_commands`
 - Exposes `take_screenshot`
 - Exposes `run_flow_files`
 - Uses STDIO transport for MCP clients
@@ -33,6 +35,7 @@ This launches the MCP server via the Maestro CLI, exposing Maestro tools over ST
 The server currently registers only:
 
 - `inspect_view_hierarchy`
+- `inspect_custom_commands`
 - `take_screenshot`
 - `run_flow_files`
 
