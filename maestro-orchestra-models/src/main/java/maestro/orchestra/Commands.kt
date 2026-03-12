@@ -1166,8 +1166,7 @@ data class CustomCommand(
     override val label: String? = null,
     override val optional: Boolean = false,
 ) : Command {
-    override val originalDescription: String
-        get() = "Invoke runtime command \"$name\""
+    override val originalDescription = name
 
     override fun evaluateScripts(jsEngine: JsEngine): Command {
         return copy(
