@@ -6,20 +6,34 @@ import io.modelcontextprotocol.kotlin.sdk.Tool
 import io.modelcontextprotocol.kotlin.sdk.server.RegisteredTool
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
+import kotlinx.serialization.json.putJsonArray
+import maestro.MaestroException
 import maestro.cli.session.MaestroSessionManager
 import maestro.cli.util.WorkingDirectory
+import maestro.cli.runner.CommandStatus
+import maestro.orchestra.MaestroCommand
 import maestro.orchestra.Orchestra
 import maestro.orchestra.util.Env.withDefaultEnvVars
 import maestro.orchestra.util.Env.withEnv
 import maestro.orchestra.util.Env.withInjectedShellEnvVars
 import maestro.orchestra.yaml.YamlCommandReader
 import java.nio.file.Files
+import java.util.IdentityHashMap
 
 object RunFlowTool {
+    private data class CommandExecutionResult(
+        val index: Int,
+        var description: String,
+        var status: CommandStatus = CommandStatus.PENDING,
+        var error: String? = null,
+    )
+
     fun create(sessionManager: MaestroSessionManager): RegisteredTool {
         return RegisteredTool(
             Tool(
@@ -137,18 +151,87 @@ object RunFlowTool {
                             .withDefaultEnvVars(sourceFile, deviceId)
                         val commandsWithEnv = commands.withEnv(finalEnv)
 
-                        val orchestra = Orchestra(session.maestro)
+                        val commandResults = IdentityHashMap<MaestroCommand, CommandExecutionResult>()
 
-                        runBlocking {
-                            orchestra.runFlow(commandsWithEnv)
+                        fun commandResult(index: Int, command: MaestroCommand): CommandExecutionResult {
+                            return commandResults.getOrPut(command) {
+                                CommandExecutionResult(
+                                    index = index,
+                                    description = command.description(),
+                                )
+                            }
                         }
 
+                        val orchestra = Orchestra(
+                            maestro = session.maestro,
+                            onCommandStart = { index, command ->
+                                commandResult(index, command).apply {
+                                    description = command.description()
+                                    status = CommandStatus.RUNNING
+                                }
+                            },
+                            onCommandComplete = { index, command ->
+                                commandResult(index, command).apply {
+                                    description = command.description()
+                                    status = CommandStatus.COMPLETED
+                                }
+                            },
+                            onCommandWarned = { index, command ->
+                                commandResult(index, command).apply {
+                                    description = command.description()
+                                    status = CommandStatus.WARNED
+                                }
+                            },
+                            onCommandSkipped = { index, command ->
+                                commandResult(index, command).apply {
+                                    description = command.description()
+                                    status = CommandStatus.SKIPPED
+                                }
+                            },
+                            onCommandMetadataUpdate = { command, metadata ->
+                                commandResults[command]?.let { result ->
+                                    result.description = metadata.evaluatedCommand?.description() ?: command.description()
+                                }
+                            },
+                            onCommandFailed = { index, command, throwable ->
+                                commandResult(index, command).apply {
+                                    description = command.description()
+                                    status = CommandStatus.FAILED
+                                    error = throwable.message
+                                }
+                                Orchestra.ErrorResolution.FAIL
+                            }
+                        )
+
+                        val flowSuccess = try {
+                            runBlocking {
+                                orchestra.runFlow(commandsWithEnv)
+                            }
+                        } catch (e: MaestroException) {
+                            false
+                        }
+
+                        val orderedResults = commandResults.values.sortedBy { it.index }
+
                         buildJsonObject {
-                            put("success", true)
+                            put("success", flowSuccess)
                             put("device_id", deviceId)
                             put("commands_executed", commands.size)
                             put("source", sourceFile.absolutePath)
-                            put("message", "Flow executed successfully")
+                            put(
+                                "message",
+                                if (flowSuccess) "Flow executed successfully" else "Flow execution failed"
+                            )
+                            putJsonArray("commands") {
+                                orderedResults.forEach { result ->
+                                    add(buildJsonObject {
+                                        put("index", result.index)
+                                        put("description", result.description)
+                                        put("status", result.status.name)
+                                        result.error?.let { put("error", it) }
+                                    })
+                                }
+                            }
                             if (finalEnv.isNotEmpty()) {
                                 putJsonObject("env_vars") {
                                     finalEnv.forEach { (key, value) ->
@@ -162,7 +245,10 @@ object RunFlowTool {
                     }
                 }
 
-                CallToolResult(content = listOf(TextContent(result)))
+                CallToolResult(
+                    content = listOf(TextContent(result)),
+                    isError = result.contains("\"success\":false")
+                )
             } catch (e: Exception) {
                 CallToolResult(
                     content = listOf(TextContent("Failed to run flow: ${e.message}")),
