@@ -409,24 +409,7 @@ class Orchestra(
             error("Custom commands are only supported on web")
         }
 
-        val availableCommands = maestro.driver.customCommands()
-        val resolved = resolveCustomCommand(command, availableCommands)
-            ?: error(
-                buildString {
-                    append("Unknown custom command: $")
-                    append(command.name)
-                    if (availableCommands.isNotEmpty()) {
-                        append(". Available custom commands: ")
-                        append(
-                            availableCommands
-                                .flatMap { it.names }
-                                .distinct()
-                                .sorted()
-                                .joinToString(", ")
-                        )
-                    }
-                }
-            )
+        val resolved = findCustomCommand(command)
 
         val expandedYaml = substituteCustomCommandArguments(
             body = normalizeCustomCommandBody(resolved.definition.body),
@@ -443,6 +426,27 @@ class Orchestra(
             mutating = executeCommand(expandedCommand, config) || mutating
         }
         return mutating
+    }
+
+    private fun findCustomCommand(command: CustomCommand): ResolvedCustomCommand {
+        val timeout = adjustedToLatestInteraction(
+            if (command.optional) optionalLookupTimeoutMs else lookupTimeoutMs
+        )
+
+        val resolved = MaestroTimer.withTimeout(timeout) {
+            val availableCommands = maestro.driver.customCommands()
+            resolveCustomCommand(command, availableCommands)
+                ?: run {
+                    MaestroTimer.sleep(MaestroTimer.Reason.WAIT_UNTIL_VISIBLE, 500)
+                    null
+                }
+        }
+
+        if (resolved != null) {
+            return resolved
+        }
+
+        throw unknownCustomCommand(command, maestro.driver.customCommands())
     }
 
     private data class ResolvedCustomCommand(
@@ -486,6 +490,41 @@ class Orchestra(
         }
 
         return matches.singleOrNull()
+    }
+
+    private fun unknownCustomCommand(
+        command: CustomCommand,
+        availableCommands: List<maestro.CustomCommandDefinition>,
+    ): MaestroException.AssertionFailure {
+        val availableCommandNames = availableCommands
+            .flatMap { it.names }
+            .distinct()
+            .sorted()
+
+        val message = buildString {
+            append("Custom command not found: $")
+            append(command.name)
+            if (availableCommandNames.isNotEmpty()) {
+                append(". Available custom commands: ")
+                append(availableCommandNames.joinToString(", "))
+            }
+        }
+
+        val debugMessage = buildString {
+            append("Custom command $")
+            append(command.name)
+            append(" was not exposed by the current UI before the lookup timeout elapsed.")
+            if (availableCommandNames.isNotEmpty()) {
+                append("\n\nAvailable custom commands at timeout:\n- ")
+                append(availableCommandNames.joinToString("\n- "))
+            }
+        }
+
+        return MaestroException.AssertionFailure(
+            message = message,
+            hierarchyRoot = maestro.viewHierarchy().root,
+            debugMessage = debugMessage,
+        )
     }
 
     private fun matchCustomCommandAlias(alias: String, invocation: String): Map<String, String>? {
