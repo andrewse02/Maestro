@@ -30,10 +30,11 @@ struct InputTextRouteHandler : HTTPHandler {
     }
     
     private func waitUntilKeyboardIsPresented() async {
-        try? await TimeoutHelper.repeatUntil(timeout: 1, delta: 0.2) {
+        let deadline = Date().addingTimeInterval(1.0)
+        while Date() < deadline {
             let app = RunningApp.getForegroundApp() ?? XCUIApplication(bundleIdentifier: RunningApp.springboardBundleId)
-
-            return app.keyboards.firstMatch.exists
+            if app.keyboards.firstMatch.exists { return }
+            try? await Task.sleep(nanoseconds: 200_000_000)
         }
     }
 }
